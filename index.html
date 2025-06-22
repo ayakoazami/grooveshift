@@ -5,13 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GrooveShift – Universal Cover Player</title>
   <style>
-    :root{
-      --primary:#64748b;
-      --bg:#0e0e0e;
-      --panel:#181818;
-      --text:#fafafa;
-      --muted:#888;
-    }
+    :root{--primary:#64748b;--bg:#0e0e0e;--panel:#181818;--text:#fafafa;--muted:#888;}
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:"Inter","Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:1.2rem;}
     h1{font-size:1.35rem;letter-spacing:.06em;color:var(--primary);margin-bottom:.9rem;}
@@ -63,8 +57,8 @@
     </div>
     <div class="tempo-box">
       <label for="tempo">TEMPO</label>
-      <input id="tempo" type="range" min="-20" max="20" value="0" />
-      <div id="tempoDisplay" class="tempo-val">ORIGINAL</div>
+      <input id="tempo" type="range" min="-50" max="50" value="0" />
+      <div id="tempoDisplay" class="tempo-val">100 BPM</div>
     </div>
     <div class="progress">
       <input id="seek" type="range" min="0" max="100" value="0" step="0.1" />
@@ -76,6 +70,7 @@
   </div>
 
   <audio id="audio"></audio>
+  <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.5/dist/jsmediatags.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/music-metadata-browser@2.7.11/dist/music-metadata-browser.iife.min.js"></script>
   <script>
     const pick = document.getElementById('filePicker');
@@ -93,77 +88,71 @@
     const durationEl = document.getElementById('duration');
 
     let playing = false;
-    const fmt = s => { const m = Math.floor(s / 60), ss = Math.floor(s % 60).toString().padStart(2, '0'); return `${m}:${ss}`; };
+    let baseBpm = 100;
+    const fmt = s => { const m = Math.floor(s/60), ss = Math.floor(s%60).toString().padStart(2,'0'); return `${m}:${ss}`; };
 
-    pick.addEventListener('change', async e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      audio.src = URL.createObjectURL(file);
-      audio.load();
-      titleEl.textContent = file.name;
-      artistEl.textContent = '';
+    pick.addEventListener('change', e => {
+      const file = e.target.files[0]; if(!file) return;
+      audio.src = URL.createObjectURL(file); audio.load();
+      titleEl.textContent = file.name; artistEl.textContent = '';
       resetCover();
-      try {
-        const meta = await musicMetadata.parseBlob(file);
-        const { common } = meta;
-        if (common.title) titleEl.textContent = common.title;
-        if (common.artist) artistEl.textContent = common.artist;
-        if (common.picture && common.picture.length) {
-          const pic = common.picture[0];
-          const blob = new Blob([pic.data.buffer || pic.data], { type: pic.format });
-          showCover(URL.createObjectURL(blob));
-          return;
+
+      // Read tags via jsmediatags
+      jsmediatags.read(file, {
+        onSuccess: tag => {
+          const tags = tag.tags;
+          if(tags.title) titleEl.textContent = tags.title;
+          if(tags.artist) artistEl.textContent = tags.artist;
+          if(tags.picture) {
+            const {data, format} = tags.picture;
+            const byteArray = new Uint8Array(data);
+            const blob = new Blob([byteArray.buffer], {type: format});
+            showCover(URL.createObjectURL(blob));
+          }
+          if(tags.TPE1){} // example if needed
+          if(tags.TBPM) {
+            baseBpm = +tags.TBPM;
+            tempo.value = 0;
+            updateTempo();
+          }
+        },
+        onError: err => {
+          // fallback to music-metadata-browser for cover
+          musicMetadata.parseBlob(file).then(meta => {
+            const common = meta.common;
+            if(common.title) titleEl.textContent = common.title;
+            if(common.artist) artistEl.textContent = common.artist;
+            if(common.picture && common.picture.length) {
+              const pic = common.picture[0];
+              const blob = new Blob([pic.data.buffer || pic.data], {type: pic.format});
+              showCover(URL.createObjectURL(blob));
+            }
+            if(common.bpm) { baseBpm = common.bpm; tempo.value = 0; updateTempo(); }
+          }).catch(console.warn);
         }
-      } catch (err) {
-        console.warn('Failed to read metadata:', err);
-      }
+      });
     });
 
-    imgPick.addEventListener('change', e => {
-      const img = e.target.files[0];
-      if (!img) return;
-      showCover(URL.createObjectURL(img));
-    });
+    imgPick.addEventListener('change', e => { const img = e.target.files[0]; if(img) showCover(URL.createObjectURL(img)); });
 
-    playBtn.addEventListener('click', () => {
-      if (!audio.src) return;
-      playing ? audio.pause() : audio.play();
-    });
-    audio.addEventListener('play', () => { playing = true; playBtn.textContent = '⏸️'; });
-    audio.addEventListener('pause', () => { playing = false; playBtn.textContent = '▶️'; });
+    playBtn.addEventListener('click', () => { if(!audio.src) return; playing? audio.pause(): audio.play(); });
+    audio.addEventListener('play',()=>{playing=true; playBtn.textContent='⏸️';});
+    audio.addEventListener('pause',()=>{playing=false; playBtn.textContent='▶️';});
 
-    const updTempo = () => {
-      const v = parseInt(tempo.value, 10);
-      audio.playbackRate = 1 + v / 100;
-      tempoDisp.textContent = v === 0 ? 'ORIGINAL' : (v > 0 ? `+${v}` : `${v}`);
-    };
-    tempo.addEventListener('input', updTempo);
-    updTempo();
+    function updateTempo() {
+      const delta = parseInt(tempo.value,10);
+      const newRate = (baseBpm + delta) / baseBpm;
+      audio.playbackRate = newRate;
+      tempoDisp.textContent = `${baseBpm+delta} BPM`;
+    }
+    tempo.addEventListener('input', updateTempo);
 
     audio.addEventListener('loadedmetadata', () => { durationEl.textContent = fmt(audio.duration); });
-    audio.addEventListener('timeupdate', () => {
-      if (audio.duration) {
-        seek.value = (audio.currentTime / audio.duration) * 100;
-        current.textContent = fmt(audio.currentTime);
-      } else {
-        seek.value = 0;
-      }
-    });
-    seek.addEventListener('input', () => { if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration; });
+    audio.addEventListener('timeupdate', ()=>{ if(audio.duration){ seek.value=(audio.currentTime/audio.duration)*100; current.textContent=fmt(audio.currentTime);} });
+    seek.addEventListener('input', ()=>{ if(audio.duration) audio.currentTime=(seek.value/100)*audio.duration; });
 
-    function resetCover() {
-      coverImg.classList.remove('show');
-      coverImg.src = '';
-      placeholder.style.opacity = 1;
-      placeholder.textContent = '♪';
-    }
-    function showCover(src) {
-      coverImg.src = src;
-      coverImg.onload = () => {
-        coverImg.classList.add('show');
-        placeholder.style.opacity = 0;
-      };
-    }
+    function resetCover() { coverImg.classList.remove('show'); coverImg.src=''; placeholder.style.opacity=1; placeholder.textContent='♪'; }
+    function showCover(src) { coverImg.src=src; coverImg.onload=()=>{ coverImg.classList.add('show'); placeholder.style.opacity=0;} }
   </script>
 </body>
 </html>
