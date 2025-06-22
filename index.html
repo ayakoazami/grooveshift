@@ -91,29 +91,47 @@
     let baseBpm = 100;
     const fmt = s => { const m = Math.floor(s/60), ss = Math.floor(s%60).toString().padStart(2,'0'); return `${m}:${ss}`; };
 
-    pick.addEventListener('change', e => {
+    pick.addEventListener('change', handleAudioSelect);
+    imgPick.addEventListener('change', e => {
+      const img = e.target.files[0];
+      if (img) showCover(URL.createObjectURL(img));
+    });
+    playBtn.addEventListener('click', () => {
+      if (!audio.src) return;
+      playing ? audio.pause() : audio.play();
+    });
+    audio.addEventListener('play', () => { playing = true; playBtn.textContent = '⏸️'; });
+    audio.addEventListener('pause', () => { playing = false; playBtn.textContent = '▶️'; });
+
+    tempo.addEventListener('input', () => {
+      const delta = parseInt(tempo.value, 10);
+      audio.playbackRate = (baseBpm + delta) / baseBpm;
+      tempoDisp.textContent = `${delta>0?'+':''}${delta}`;
+    });
+
+    audio.addEventListener('loadedmetadata', () => { durationEl.textContent = fmt(audio.duration); });
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) {
+        seek.value = (audio.currentTime / audio.duration) * 100;
+        current.textContent = fmt(audio.currentTime);
+      }
+    });
+    seek.addEventListener('input', () => { if (audio.duration) audio.currentTime = (seek.value/100)*audio.duration; });
+
+    function handleAudioSelect(e) {
       const file = e.target.files[0];
       if (!file) return;
 
-      // Reset all player state when new file is selected
-      audio.pause();
-      playing = false;
-      playBtn.textContent = '▶️';
-      tempo.value = 0;
-      baseBpm = 100;
-      updateTempo();
-      seek.value = 0;
-      current.textContent = '0:00';
-      durationEl.textContent = '0:00';
+      // Reset state
+      audio.pause(); playing = false; playBtn.textContent = '▶️';
+      tempo.value = 0; baseBpm = 100; tempoDisp.textContent = '0';
+      seek.value = 0; current.textContent = '0:00'; durationEl.textContent = '0:00';
+      resetCover(); titleEl.textContent = file.name; artistEl.textContent = '';
 
-      // Load new audio source
-      audio.src = URL.createObjectURL(file);
-      audio.load();
-      titleEl.textContent = file.name;
-      artistEl.textContent = '';
-      resetCover();
+      // Load source
+      audio.src = URL.createObjectURL(file); audio.load();
 
-      // Parse tags
+      // Read tags
       jsmediatags.read(file, {
         onSuccess: tag => {
           const t = tag.tags;
@@ -124,36 +142,32 @@
             const { data, format } = t.picture;
             const blob = new Blob([new Uint8Array(data).buffer], { type: format });
             showCover(URL.createObjectURL(blob));
-          } else {
-            fallbackCover(file);
-          }
-          // Ensure tempo slider resets
-          tempo.value = 0;
-          updateTempo();
+          } else fallbackCover(file);
+          tempo.value = 0; tempoDisp.textContent = '0';
         },
         onError: () => fallbackCover(file)
       });
-    });
+    }
 
     function fallbackCover(file) {
       musicMetadata.parseBlob(file)
         .then(meta => {
-          const c = meta.common;
-          if (c.title) titleEl.textContent = c.title;
-          if (c.artist) artistEl.textContent = c.artist;
-          if (c.picture && c.picture.length) {
-            const p = c.picture[0];
+          if (meta.common.title) titleEl.textContent = meta.common.title;
+          if (meta.common.artist) artistEl.textContent = meta.common.artist;
+          if (meta.common.picture && meta.common.picture.length) {
+            const p = meta.common.picture[0];
             const blob = new Blob([p.data.buffer || p.data], { type: p.format });
             showCover(URL.createObjectURL(blob));
           }
-        })
-        .catch(() => {});
+        }).catch(() => {});
     }
 
-    imgPick.addEventListener('change', e => {
-      const img = e.target.files[0];
-      if (img) showCover(URL.createObjectURL(img));
-    });
-
-    playBtn.addEventListener('click'
-}]}
+    function resetCover() {
+      coverImg.classList.remove('show'); coverImg.src = ''; placeholder.style.opacity = 1;
+    }
+    function showCover(src) {
+      coverImg.src = src; coverImg.onload = () => { coverImg.classList.add('show'); placeholder.style.opacity = 0; };
+    }
+  </script>
+</body>
+</html>
