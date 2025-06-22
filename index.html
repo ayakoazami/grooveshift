@@ -13,15 +13,15 @@
       --muted:#888;
     }
     *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:"Inter","Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;min-height:100dvh;padding:1.2rem;}
+    body{font-family:"Inter","Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:1.2rem;}
     h1{font-size:1.35rem;letter-spacing:.06em;color:var(--primary);margin-bottom:.9rem;}
     .player{width:100%;max-width:370px;background:var(--panel);border-radius:18px;padding:1.3rem;box-shadow:0 6px 18px rgba(0,0,0,.55);}
     .file-input{text-align:center;margin-bottom:1rem;}
     .file-input input{display:none;}
     .file-input label{display:inline-block;background:var(--primary);color:#000;font-weight:600;padding:.66rem 1.2rem;border-radius:10px;cursor:pointer;transition:opacity .2s;}
     .file-input label:hover{opacity:.85;}
-    .cover{width:100%;aspect-ratio:1;border-radius:14px;background:#222 center/cover no-repeat;position:relative;margin-bottom:1rem;overflow:hidden;display:flex;align-items:center;justify-content:center;}
-    .cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:14px;opacity:0;transition:opacity .35s ease;}
+    .cover{width:100%;max-height:250px;border-radius:14px;background:#222 center/contain no-repeat;position:relative;margin-bottom:1rem;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+    .cover img{max-width:100%;max-height:100%;object-fit:contain;border-radius:14px;opacity:0;transition:opacity .35s ease;}
     .cover img.show{opacity:1;}
     .placeholder{font-size:4rem;font-weight:700;color:var(--muted);user-select:none;text-transform:uppercase;}
     .info{text-align:center;margin-bottom:1rem;}
@@ -42,37 +42,30 @@
 <body>
   <h1>GrooveShift</h1>
   <div class="player">
-    <!-- Audio File Picker -->
     <div class="file-input">
       <label for="filePicker">Select Audio</label>
       <input id="filePicker" type="file" accept=".mp3,.wav,audio/*" />
     </div>
-    <!-- Cover Image Picker -->
     <div class="file-input">
       <label for="imgPicker">Select Cover Image</label>
       <input id="imgPicker" type="file" accept="image/*" />
     </div>
-    <!-- Cover Display -->
     <div class="cover" id="cover">
       <div id="placeholder" class="placeholder">♪</div>
       <img id="coverImg" alt="Album Art" />
     </div>
-    <!-- Track Info -->
     <div class="info">
       <strong id="trackTitle">No track loaded</strong>
       <span id="artistInfo">—</span>
     </div>
-    <!-- Controls -->
     <div class="controls">
       <button id="playBtn">▶️</button>
     </div>
-    <!-- Tempo Control -->
     <div class="tempo-box">
       <label for="tempo">TEMPO</label>
       <input id="tempo" type="range" min="-20" max="20" value="0" />
       <div id="tempoDisplay" class="tempo-val">ORIGINAL</div>
     </div>
-    <!-- Progress Bar -->
     <div class="progress">
       <input id="seek" type="range" min="0" max="100" value="0" step="0.1" />
       <div class="time">
@@ -102,21 +95,14 @@
     let playing = false;
     const fmt = s => { const m = Math.floor(s / 60), ss = Math.floor(s % 60).toString().padStart(2, '0'); return `${m}:${ss}`; };
 
-    // Audio file change
     pick.addEventListener('change', async e => {
       const file = e.target.files[0];
       if (!file) return;
-
-      // load audio
       audio.src = URL.createObjectURL(file);
       audio.load();
-
-      // reset UI
       titleEl.textContent = file.name;
       artistEl.textContent = '';
       resetCover();
-
-      // try embedded art
       try {
         const meta = await musicMetadata.parseBlob(file);
         const { common } = meta;
@@ -133,14 +119,12 @@
       }
     });
 
-    // Image file change
     imgPick.addEventListener('change', e => {
       const img = e.target.files[0];
       if (!img) return;
       showCover(URL.createObjectURL(img));
     });
 
-    // Play/Pause
     playBtn.addEventListener('click', () => {
       if (!audio.src) return;
       playing ? audio.pause() : audio.play();
@@ -148,7 +132,6 @@
     audio.addEventListener('play', () => { playing = true; playBtn.textContent = '⏸️'; });
     audio.addEventListener('pause', () => { playing = false; playBtn.textContent = '▶️'; });
 
-    // Tempo Control
     const updTempo = () => {
       const v = parseInt(tempo.value, 10);
       audio.playbackRate = 1 + v / 100;
@@ -157,7 +140,6 @@
     tempo.addEventListener('input', updTempo);
     updTempo();
 
-    // Progress Bar
     audio.addEventListener('loadedmetadata', () => { durationEl.textContent = fmt(audio.duration); });
     audio.addEventListener('timeupdate', () => {
       if (audio.duration) {
@@ -169,7 +151,6 @@
     });
     seek.addEventListener('input', () => { if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration; });
 
-    // Helpers
     function resetCover() {
       coverImg.classList.remove('show');
       coverImg.src = '';
