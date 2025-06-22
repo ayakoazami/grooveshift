@@ -6,7 +6,7 @@
   <title>GrooveShift – Universal Cover Player</title>
   <style>
     :root{
-      --primary:#64748b;/* accent */
+      --primary:#64748b;
       --bg:#0e0e0e;
       --panel:#181818;
       --text:#fafafa;
@@ -15,34 +15,26 @@
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:"Inter","Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;min-height:100dvh;padding:1.2rem;}
     h1{font-size:1.35rem;letter-spacing:.06em;color:var(--primary);margin-bottom:.9rem;}
-
     .player{width:100%;max-width:370px;background:var(--panel);border-radius:18px;padding:1.3rem;box-shadow:0 6px 18px rgba(0,0,0,.55);}
-
     .file-input{text-align:center;margin-bottom:1rem;}
     .file-input input{display:none;}
     .file-input label{display:inline-block;background:var(--primary);color:#000;font-weight:600;padding:.66rem 1.2rem;border-radius:10px;cursor:pointer;transition:opacity .2s;}
     .file-input label:hover{opacity:.85;}
-
     .cover{width:100%;aspect-ratio:1;border-radius:14px;background:#222 center/cover no-repeat;position:relative;margin-bottom:1rem;overflow:hidden;display:flex;align-items:center;justify-content:center;}
     .cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:14px;opacity:0;transition:opacity .35s ease;}
     .cover img.show{opacity:1;}
     .placeholder{font-size:4rem;font-weight:700;color:var(--muted);user-select:none;text-transform:uppercase;}
-
     .info{text-align:center;margin-bottom:1rem;}
     .info strong{display:block;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .info span{display:block;font-size:.8rem;color:var(--muted);}
-
     .controls{display:flex;justify-content:center;gap:2rem;margin:1rem 0;}
     button{background:none;border:none;color:var(--text);font-size:2.4rem;cursor:pointer;}button:active{transform:scale(.9);}
-
     .tempo-box{text-align:center;margin:1.1rem 0;}
     .tempo-box label{color:var(--primary);font-weight:700;letter-spacing:.05em;font-size:.85rem;}
     .tempo-val{margin-top:.25rem;font-size:1.25rem;}
-
     input[type=range]{-webkit-appearance:none;width:100%;height:12px;background:#333;border-radius:6px;outline:none;}
     input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--primary);border:none;cursor:pointer;}
     input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;border-radius:50%;background:var(--primary);cursor:pointer;}
-
     .progress{margin-top:1rem;}
     .time{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:.2rem;}
   </style>
@@ -50,98 +42,111 @@
 <body>
   <h1>GrooveShift</h1>
   <div class="player">
-    <div class="file-input"><label for="filePicker">Select Audio</label><input id="filePicker" type="file" accept=".mp3,.wav,audio/mpeg,audio/wav,audio/wave,audio/x-wav,audio/x-pn-wav" /></div>
-    <div class="cover" id="cover"><div id="placeholder" class="placeholder">♪</div><img id="coverImg" alt="Album Art"/></div>
-    <div class="info"><strong id="trackTitle">No track loaded</strong><span id="artistInfo">—</span></div>
-    <div class="controls"><button id="playBtn">▶️</button></div>
-    <div class="tempo-box"><label for="tempo">TEMPO</label><input id="tempo" type="range" min="-20" max="20" value="0"/><div id="tempoDisplay" class="tempo-val">ORIGINAL</div></div>
-    <div class="progress"><input id="seek" type="range" min="0" max="100" value="0" step="0.1"/><div class="time"><span id="currentTime">0:00</span><span id="duration">0:00</span></div></div>
+    <div class="file-input">
+      <label for="filePicker">Select Audio</label>
+      <input id="filePicker" type="file" accept=".mp3,.wav,audio/*" />
+    </div>
+    <div class="cover" id="cover">
+      <div id="placeholder" class="placeholder">♪</div>
+      <img id="coverImg" alt="Album Art" />
+    </div>
+    <div class="info">
+      <strong id="trackTitle">No track loaded</strong>
+      <span id="artistInfo">—</span>
+    </div>
+    <div class="controls">
+      <button id="playBtn">▶️</button>
+    </div>
+    <div class="tempo-box">
+      <label for="tempo">TEMPO</label>
+      <input id="tempo" type="range" min="-20" max="20" value="0" />
+      <div id="tempoDisplay" class="tempo-val">ORIGINAL</div>
+    </div>
+    <div class="progress">
+      <input id="seek" type="range" min="0" max="100" value="0" step="0.1" />
+      <div class="time">
+        <span id="currentTime">0:00</span>
+        <span id="duration">0:00</span>
+      </div>
+    </div>
   </div>
 
   <audio id="audio"></audio>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/music-metadata-browser@2.7.11/dist/music-metadata-browser.iife.min.js"></script>
   <script>
-    const pick=document.getElementById('filePicker');
-    const audio=document.getElementById('audio');
-    const playBtn=document.getElementById('playBtn');
-    const seek=document.getElementById('seek');
-    const tempo=document.getElementById('tempo');
-    const tempoDisp=document.getElementById('tempoDisplay');
-    const titleEl=document.getElementById('trackTitle');
-    const artistEl=document.getElementById('artistInfo');
-    const coverImg=document.getElementById('coverImg');
-    const placeholder=document.getElementById('placeholder');
-    const current=document.getElementById('currentTime');
-    const durationEl=document.getElementById('duration');
-    let playing=false;
+    const pick = document.getElementById('filePicker');
+    const audio = document.getElementById('audio');
+    const playBtn = document.getElementById('playBtn');
+    const seek = document.getElementById('seek');
+    const tempo = document.getElementById('tempo');
+    const tempoDisp = document.getElementById('tempoDisplay');
+    const titleEl = document.getElementById('trackTitle');
+    const artistEl = document.getElementById('artistInfo');
+    const coverImg = document.getElementById('coverImg');
+    const placeholder = document.getElementById('placeholder');
+    const current = document.getElementById('currentTime');
+    const durationEl = document.getElementById('duration');
 
-    const fmt=s=>{const m=Math.floor(s/60), ss=Math.floor(s%60).toString().padStart(2,'0');return `${m}:${ss}`;};
+    let playing = false;
+    const fmt = s => { const m = Math.floor(s / 60), ss = Math.floor(s % 60).toString().padStart(2, '0'); return `${m}:${ss}`; };
 
-    pick.addEventListener('change',async e=>{
-      const file=e.target.files[0];if(!file) return;
-      const url=URL.createObjectURL(file);
-      audio.src=url;audio.load();
+    pick.addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // load audio
+      const url = URL.createObjectURL(file);
+      audio.src = url;
+      audio.load();
+
       // reset UI
-      titleEl.textContent=file.name;artistEl.textContent='';
-      coverImg.classList.remove('show');coverImg.src='';placeholder.textContent='♪';placeholder.style.opacity=1;
+      titleEl.textContent = file.name;
+      artistEl.textContent = '';
+      coverImg.classList.remove('show');
+      coverImg.src = '';
+      placeholder.style.opacity = 1;
+      placeholder.textContent = '♪';
 
-      // try music-metadata-browser first (broad format)
-      try{
-        const meta=await musicMetadata.parseBlob(file);
-        if(meta.common.title) titleEl.textContent=meta.common.title;
-        if(meta.common.artist) artistEl.textContent=meta.common.artist;
-        if(meta.common.picture&&meta.common.picture.length){
-          const pic=meta.common.picture[0];
-          const blob=new Blob([pic.data],{type:pic.format||'image/jpeg'});
-          coverImg.src=URL.createObjectURL(blob);
-          coverImg.onload=()=>{coverImg.classList.add('show');placeholder.style.opacity=0;};
+      try {
+        const meta = await musicMetadata.parseBlob(file);
+        const { common } = meta;
+        if (common.title) titleEl.textContent = common.title;
+        if (common.artist) artistEl.textContent = common.artist;
+        if (common.picture && common.picture.length) {
+          const pic = common.picture[0];
+          const blob = new Blob([pic.data.buffer || pic.data], { type: pic.format });
+          coverImg.src = URL.createObjectURL(blob);
+          coverImg.onload = () => {
+            coverImg.classList.add('show');
+            placeholder.style.opacity = 0;
+          };
         }
-      }catch(err){console.warn('music-metadata err',err);}
+      } catch (err) {
+        console.warn('Failed to read metadata:', err);
+      }
 
-      // fallback to jsmediatags (good for mp3/mp4)
-      window.jsmediatags.read(file,{
-        onSuccess:({tags})=>{
-          if(!artistEl.textContent&&tags.artist)artistEl.textContent=tags.artist;
-          if(!titleEl.textContent||titleEl.textContent===file.name) if(tags.title) titleEl.textContent=tags.title;
-          if(!coverImg.src && tags.picture){
-            const {data,format}=tags.picture;
-            const mime=format||'image/jpeg';
-            // choose safer method: Blob if >500kB else base64
-            if(data.length>500000){
-              const blob=new Blob([new Uint8Array(data)],{type:mime});
-              coverImg.src=URL.createObjectURL(blob);
-            }else{
-              const byteStr=data.reduce((acc,b)=>acc+String.fromCharCode(b),'');
-              coverImg.src=`data:${mime};base64,${btoa(byteStr)}`;
-            }
-            coverImg.onload=()=>{coverImg.classList.add('show');placeholder.style.opacity=0;};
-          }
-        },
-        onError:err=>console.warn('jsmediatags err',err)
-      });
-
-      // if still no art after 1s, use first letter placeholder
-      setTimeout(()=>{
-        if(!coverImg.classList.contains('show')){
-          placeholder.textContent=(titleEl.textContent[0]||'?').toUpperCase();
+      // placeholder fallback
+      setTimeout(() => {
+        if (!coverImg.classList.contains('show')) {
+          placeholder.textContent = (titleEl.textContent.charAt(0) || '?').toUpperCase();
         }
-      },1000);
+      }, 1000);
     });
 
-    // play / pause
-    playBtn.addEventListener('click',()=>{if(!audio.src) return;playing?audio.pause():audio.play();});
-    audio.addEventListener('play',()=>{playing=true;playBtn.textContent='⏸️';});
-    audio.addEventListener('pause',()=>{playing=false;playBtn.textContent='▶️';});
+    // play/pause
+    playBtn.addEventListener('click', () => { if (!audio.src) return; playing ? audio.pause() : audio.play(); });
+    audio.addEventListener('play', () => { playing = true; playBtn.textContent = '⏸️'; });
+    audio.addEventListener('pause', () => { playing = false; playBtn.textContent = '▶️'; });
 
     // tempo control
-    const updTempo=()=>{const v=parseInt(tempo.value,10);audio.playbackRate=1+v/100;tempoDisp.textContent=v===0?'ORIGINAL':(v>0?`+${v}`:`${v}`);} ;
-    tempo.addEventListener('input',updTempo);updTempo();
+    const updTempo = () => { const v = parseInt(tempo.value, 10); audio.playbackRate = 1 + v / 100; tempoDisp.textContent = v === 0 ? 'ORIGINAL' : (v > 0 ? `+${v}` : `${v}`); };
+    tempo.addEventListener('input', updTempo);
+    updTempo();
 
     // progress bar
-    audio.addEventListener('loadedmetadata',()=>{durationEl.textContent=fmt(audio.duration);});
-    audio.addEventListener('timeupdate',()=>{if(audio.duration){seek.value=(audio.currentTime/audio.duration)*100;current.textContent=fmt(audio.currentTime);}else{seek.value=0;}});
-    seek.addEventListener('input',()=>{if(audio.duration) audio.currentTime=(seek.value/100)*audio.duration;});
+    audio.addEventListener('loadedmetadata', () => { durationEl.textContent = fmt(audio.duration); });
+    audio.addEventListener('timeupdate', () => { if (audio.duration) { seek.value = (audio.currentTime / audio.duration) * 100; current.textContent = fmt(audio.currentTime); } else { seek.value = 0; } });
+    seek.addEventListener('input', () => { if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration; });
   </script>
 </body>
 </html>
