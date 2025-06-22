@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GrooveShift – Universal Cover Player</title>
   <style>
     :root{--primary:#64748b;--bg:#0e0e0e;--panel:#181818;--text:#fafafa;--muted:#888;}
@@ -38,15 +38,15 @@
   <div class="player">
     <div class="file-input">
       <label for="filePicker">Select Audio</label>
-      <input id="filePicker" type="file" accept=".mp3,.wav,audio/*" />
+      <input id="filePicker" type="file" accept=".mp3,.wav,audio/*">
     </div>
     <div class="file-input">
       <label for="imgPicker">Select Cover Image</label>
-      <input id="imgPicker" type="file" accept="image/*" />
+      <input id="imgPicker" type="file" accept="image/*">
     </div>
     <div class="cover" id="cover">
       <div id="placeholder" class="placeholder">♪</div>
-      <img id="coverImg" alt="Album Art" />
+      <img id="coverImg" alt="Album Art">
     </div>
     <div class="info">
       <strong id="trackTitle">No track loaded</strong>
@@ -57,11 +57,11 @@
     </div>
     <div class="tempo-box">
       <label for="tempo">TEMPO</label>
-      <input id="tempo" type="range" min="-50" max="50" value="0" />
-      <div id="tempoDisplay" class="tempo-val">100 BPM</div>
+      <input id="tempo" type="range" min="-50" max="50" value="0">
+      <div id="tempoDisplay" class="tempo-val">0</div>
     </div>
     <div class="progress">
-      <input id="seek" type="range" min="0" max="100" value="0" step="0.1" />
+      <input id="seek" type="range" min="0" max="100" value="0" step="0.1">
       <div class="time">
         <span id="currentTime">0:00</span>
         <span id="duration">0:00</span>
@@ -92,67 +92,74 @@
     const fmt = s => { const m = Math.floor(s/60), ss = Math.floor(s%60).toString().padStart(2,'0'); return `${m}:${ss}`; };
 
     pick.addEventListener('change', e => {
-      const file = e.target.files[0]; if(!file) return;
-      audio.src = URL.createObjectURL(file); audio.load();
-      titleEl.textContent = file.name; artistEl.textContent = '';
+      const file = e.target.files[0]; if (!file) return;
+      audio.src = URL.createObjectURL(file);
+      audio.load();
+      titleEl.textContent = file.name;
+      artistEl.textContent = '';
       resetCover();
 
       // Read tags via jsmediatags
       jsmediatags.read(file, {
         onSuccess: tag => {
-          const tags = tag.tags;
-          if(tags.title) titleEl.textContent = tags.title;
-          if(tags.artist) artistEl.textContent = tags.artist;
-          if(tags.picture) {
-            const {data, format} = tags.picture;
-            const byteArray = new Uint8Array(data);
-            const blob = new Blob([byteArray.buffer], {type: format});
+          const t = tag.tags;
+          if (t.title) titleEl.textContent = t.title;
+          if (t.artist) artistEl.textContent = t.artist;
+          if (t.TBPM) baseBpm = +t.TBPM;
+          // Cover or fallback
+          if (t.picture) {
+            const { data, format } = t.picture;
+            const blob = new Blob([new Uint8Array(data).buffer], { type: format });
             showCover(URL.createObjectURL(blob));
+          } else {
+            fallbackCover(file);
           }
-          if(tags.TPE1){} // example if needed
-          if(tags.TBPM) {
-            baseBpm = +tags.TBPM;
-            tempo.value = 0;
-            updateTempo();
-          }
+          tempo.value = 0;
+          updateTempo();
         },
-        onError: err => {
-          // fallback to music-metadata-browser for cover
-          musicMetadata.parseBlob(file).then(meta => {
-            const common = meta.common;
-            if(common.title) titleEl.textContent = common.title;
-            if(common.artist) artistEl.textContent = common.artist;
-            if(common.picture && common.picture.length) {
-              const pic = common.picture[0];
-              const blob = new Blob([pic.data.buffer || pic.data], {type: pic.format});
-              showCover(URL.createObjectURL(blob));
-            }
-            if(common.bpm) { baseBpm = common.bpm; tempo.value = 0; updateTempo(); }
-          }).catch(console.warn);
-        }
+        onError: () => fallbackCover(file)
       });
     });
 
-    imgPick.addEventListener('change', e => { const img = e.target.files[0]; if(img) showCover(URL.createObjectURL(img)); });
+    function fallbackCover(file) {
+      musicMetadata.parseBlob(file)
+        .then(meta => {
+          const c = meta.common;
+          if (c.title) titleEl.textContent = c.title;
+          if (c.artist) artistEl.textContent = c.artist;
+          if (c.picture && c.picture.length) {
+            const p = c.picture[0];
+            const blob = new Blob([p.data.buffer || p.data], { type: p.format });
+            showCover(URL.createObjectURL(blob));
+          }
+        })
+        .catch(() => {});
+    }
 
-    playBtn.addEventListener('click', () => { if(!audio.src) return; playing? audio.pause(): audio.play(); });
-    audio.addEventListener('play',()=>{playing=true; playBtn.textContent='⏸️';});
-    audio.addEventListener('pause',()=>{playing=false; playBtn.textContent='▶️';});
+    imgPick.addEventListener('change', e => { const img = e.target.files[0]; if (img) showCover(URL.createObjectURL(img)); });
+
+    playBtn.addEventListener('click', () => { if (!audio.src) return; playing ? audio.pause() : audio.play(); });
+    audio.addEventListener('play', () => { playing = true; playBtn.textContent = '⏸️'; });
+    audio.addEventListener('pause', () => { playing = false; playBtn.textContent = '▶️'; });
 
     function updateTempo() {
-      const delta = parseInt(tempo.value,10);
-      const newRate = (baseBpm + delta) / baseBpm;
-      audio.playbackRate = newRate;
-      tempoDisp.textContent = `${baseBpm+delta} BPM`;
+      const delta = parseInt(tempo.value, 10);
+      audio.playbackRate = (baseBpm + delta) / baseBpm;
+      tempoDisp.textContent = `${delta > 0 ? '+' : ''}${delta}`;
     }
     tempo.addEventListener('input', updateTempo);
 
     audio.addEventListener('loadedmetadata', () => { durationEl.textContent = fmt(audio.duration); });
-    audio.addEventListener('timeupdate', ()=>{ if(audio.duration){ seek.value=(audio.currentTime/audio.duration)*100; current.textContent=fmt(audio.currentTime);} });
-    seek.addEventListener('input', ()=>{ if(audio.duration) audio.currentTime=(seek.value/100)*audio.duration; });
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) {
+        seek.value = (audio.currentTime / audio.duration) * 100;
+        current.textContent = fmt(audio.currentTime);
+      }
+    });
+    seek.addEventListener('input', () => { if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration; });
 
-    function resetCover() { coverImg.classList.remove('show'); coverImg.src=''; placeholder.style.opacity=1; placeholder.textContent='♪'; }
-    function showCover(src) { coverImg.src=src; coverImg.onload=()=>{ coverImg.classList.add('show'); placeholder.style.opacity=0;} }
+    function resetCover() { coverImg.classList.remove('show'); coverImg.src = ''; placeholder.style.opacity = 1; }
+    function showCover(src) { coverImg.src = src; coverImg.onload = () => { coverImg.classList.add('show'); placeholder.style.opacity = 0; }; }
   </script>
 </body>
 </html>
