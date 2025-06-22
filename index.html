@@ -3,11 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GrooveShift – Debug Cover Loading</title>
-  <style>/* (省略: 既存のスタイルをそのまま流用) */</style>
+  <title>GrooveShift – Universal Cover Player</title>
+  <style>
+    :root{--primary:#64748b;--bg:#0e0e0e;--panel:#181818;--text:#fafafa;--muted:#888;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:"Inter","Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:1.2rem;}
+    h1{font-size:1.35rem;letter-spacing:.06em;color:var(--primary);margin-bottom:.9rem;}
+    .player{width:100%;max-width:370px;background:var(--panel);border-radius:18px;padding:1.3rem;box-shadow:0 6px 18px rgba(0,0,0,.55);}
+    .file-input{text-align:center;margin-bottom:1rem;}
+    .file-input input{display:none;}
+    .file-input label{display:inline-block;background:var(--primary);color:#000;font-weight:600;padding:.66rem 1.2rem;border-radius:10px;cursor:pointer;transition:opacity .2s;}
+    .file-input label:hover{opacity:.85;}
+    .cover{width:100%;max-height:250px;border-radius:14px;background:#222 center/contain no-repeat;position:relative;margin-bottom:1rem;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+    .cover img{max-width:100%;max-height:100%;object-fit:contain;border-radius:14px;opacity:0;transition:opacity .35s ease;}
+    .cover img.show{opacity:1;}
+    .placeholder{font-size:4rem;font-weight:700;color:var(--muted);user-select:none;text-transform:uppercase;}
+    .info{text-align:center;margin-bottom:1rem;}
+    .info strong{display:block;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .info span{display:block;font-size:.8rem;color:var(--muted);}
+    .controls{display:flex;justify-content:center;gap:2rem;margin:1rem 0;}
+    button{background:none;border:none;color:var(--text);font-size:2.4rem;cursor:pointer;}button:active{transform:scale(.9);}
+    .tempo-box{text-align:center;margin:1.1rem 0;}
+    .tempo-box label{color:var(--primary);font-weight:700;letter-spacing:.05em;font-size:.85rem;}
+    .tempo-val{margin-top:.25rem;font-size:1.25rem;}
+    input[type=range]{-webkit-appearance:none;width:100%;height:12px;background:#333;border-radius:6px;outline:none;}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--primary);border:none;cursor:pointer;}
+    input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;border-radius:50%;background:var(--primary);cursor:pointer;}
+    .progress{margin-top:1rem;}
+    .time{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:.2rem;}
+  </style>
 </head>
 <body>
-  <h1>GrooveShift (Debug Mode)</h1>
+  <h1>GrooveShift</h1>
   <div class="player">
     <div class="file-input">
       <label for="filePicker">Select Audio</label>
@@ -21,7 +48,25 @@
       <div id="placeholder" class="placeholder">♪</div>
       <img id="coverImg" alt="Album Art">
     </div>
-    <!-- 略: 残りUIは同じ -->
+    <div class="info">
+      <strong id="trackTitle">No track loaded</strong>
+      <span id="artistInfo">—</span>
+    </div>
+    <div class="controls">
+      <button id="playBtn">▶️</button>
+    </div>
+    <div class="tempo-box">
+      <label for="tempo">TEMPO</label>
+      <input id="tempo" type="range" min="-20" max="20" value="0">
+      <div id="tempoDisplay" class="tempo-val">0</div>
+    </div>
+    <div class="progress">
+      <input id="seek" type="range" min="0" max="100" value="0" step="0.1">
+      <div class="time">
+        <span id="currentTime">0:00</span>
+        <span id="duration">0:00</span>
+      </div>
+    </div>
   </div>
 
   <audio id="audio"></audio>
@@ -30,72 +75,91 @@
   <script>
     const pick = document.getElementById('filePicker');
     const imgPick = document.getElementById('imgPicker');
+    const audio = document.getElementById('audio');
+    const playBtn = document.getElementById('playBtn');
+    const seek = document.getElementById('seek');
+    const tempo = document.getElementById('tempo');
+    const tempoDisp = document.getElementById('tempoDisplay');
+    const titleEl = document.getElementById('trackTitle');
+    const artistEl = document.getElementById('artistInfo');
     const coverImg = document.getElementById('coverImg');
     const placeholder = document.getElementById('placeholder');
+    const current = document.getElementById('currentTime');
+    const durationEl = document.getElementById('duration');
+
+    let playing = false;
+    let baseBpm = 100;
+    const fmt = s => { const m = Math.floor(s/60), ss = Math.floor(s%60).toString().padStart(2,'0'); return `${m}:${ss}`; };
 
     pick.addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (!file) return;
+      const file = e.target.files[0]; if (!file) return;
+      audio.src = URL.createObjectURL(file);
+      audio.load();
+      titleEl.textContent = file.name;
+      artistEl.textContent = '';
+      resetCover();
 
-      console.group('🛠 Debug: Audio File Selected');
-      console.log('File:', file);
-
-      // jsmediatags でタグ全出力
+      // Read tags via jsmediatags
       jsmediatags.read(file, {
         onSuccess: tag => {
-          console.log('jsmediatags:', tag);
-          if (tag.tags.picture) {
-            const { data, format } = tag.tags.picture;
+          const t = tag.tags;
+          if (t.title) titleEl.textContent = t.title;
+          if (t.artist) artistEl.textContent = t.artist;
+          if (t.TBPM) baseBpm = +t.TBPM;
+          // Cover or fallback
+          if (t.picture) {
+            const { data, format } = t.picture;
             const blob = new Blob([new Uint8Array(data).buffer], { type: format });
-            const url = URL.createObjectURL(blob);
-            console.log('Cover from APIC:', url);
-            showCover(url);
+            showCover(URL.createObjectURL(blob));
           } else {
-            console.warn('No picture in jsmediatags. Fallback.');
             fallbackCover(file);
           }
+          tempo.value = 0;
+          updateTempo();
         },
-        onError: err => {
-          console.error('jsmediatags error:', err);
-          fallbackCover(file);
-        }
+        onError: () => fallbackCover(file)
       });
-      console.groupEnd();
     });
 
     function fallbackCover(file) {
-      console.group('🔄 Debug: Fallback via music-metadata-browser');
       musicMetadata.parseBlob(file)
         .then(meta => {
-          console.log('music-metadata-browser:', meta.common);
-          if (meta.common.picture && meta.common.picture.length) {
-            const pic = meta.common.picture[0];
-            const blob = new Blob([pic.data.buffer || pic.data], { type: pic.format });
-            const url = URL.createObjectURL(blob);
-            console.log('Cover from fallback APIC:', url);
-            showCover(url);
-          } else {
-            console.warn('No picture in fallback metadata.');
+          const c = meta.common;
+          if (c.title) titleEl.textContent = c.title;
+          if (c.artist) artistEl.textContent = c.artist;
+          if (c.picture && c.picture.length) {
+            const p = c.picture[0];
+            const blob = new Blob([p.data.buffer || p.data], { type: p.format });
+            showCover(URL.createObjectURL(blob));
           }
         })
-        .catch(err => console.error('music-metadata-browser error:', err))
-        .finally(() => console.groupEnd());
+        .catch(() => {});
     }
 
-    function resetCover() {
-      coverImg.classList.remove('show');
-      coverImg.src = '';
-      placeholder.style.opacity = 1;
-    }
-    function showCover(src) {
-      coverImg.src = src;
-      coverImg.onload = () => {
-        coverImg.classList.add('show');
-        placeholder.style.opacity = 0;
-      };
-    }
+    imgPick.addEventListener('change', e => { const img = e.target.files[0]; if (img) showCover(URL.createObjectURL(img)); });
 
-    // 略: 残るUI制御 (play, tempo, etc.) はそのまま
+    playBtn.addEventListener('click', () => { if (!audio.src) return; playing ? audio.pause() : audio.play(); });
+    audio.addEventListener('play', () => { playing = true; playBtn.textContent = '⏸️'; });
+    audio.addEventListener('pause', () => { playing = false; playBtn.textContent = '▶️'; });
+
+    function updateTempo() {
+      const delta = parseInt(tempo.value, 10);
+      audio.playbackRate = (baseBpm + delta) / baseBpm;
+      tempoDisp.textContent = `${delta > 0 ? '+' : ''}${delta}`;
+    }
+    tempo.addEventListener('input', updateTempo);
+
+    audio.addEventListener('loadedmetadata', () => { durationEl.textContent = fmt(audio.duration); });
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) {
+        seek.value = (audio.currentTime / audio.duration) * 100;
+        current.textContent = fmt(audio.currentTime);
+      }
+    });
+    seek.addEventListener('input', () => { if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration; });
+
+    function resetCover() { coverImg.classList.remove('show'); coverImg.src = ''; placeholder.style.opacity = 1; }
+    function showCover(src) { coverImg.src = src; coverImg.onload = () => { coverImg.classList.add('show'); placeholder.style.opacity = 0; }; }
   </script>
 </body>
 </html>
