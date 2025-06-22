@@ -42,26 +42,37 @@
 <body>
   <h1>GrooveShift</h1>
   <div class="player">
+    <!-- Audio File Picker -->
     <div class="file-input">
       <label for="filePicker">Select Audio</label>
       <input id="filePicker" type="file" accept=".mp3,.wav,audio/*" />
     </div>
+    <!-- Cover Image Picker -->
+    <div class="file-input">
+      <label for="imgPicker">Select Cover Image</label>
+      <input id="imgPicker" type="file" accept="image/*" />
+    </div>
+    <!-- Cover Display -->
     <div class="cover" id="cover">
       <div id="placeholder" class="placeholder">♪</div>
       <img id="coverImg" alt="Album Art" />
     </div>
+    <!-- Track Info -->
     <div class="info">
       <strong id="trackTitle">No track loaded</strong>
       <span id="artistInfo">—</span>
     </div>
+    <!-- Controls -->
     <div class="controls">
       <button id="playBtn">▶️</button>
     </div>
+    <!-- Tempo Control -->
     <div class="tempo-box">
       <label for="tempo">TEMPO</label>
       <input id="tempo" type="range" min="-20" max="20" value="0" />
       <div id="tempoDisplay" class="tempo-val">ORIGINAL</div>
     </div>
+    <!-- Progress Bar -->
     <div class="progress">
       <input id="seek" type="range" min="0" max="100" value="0" step="0.1" />
       <div class="time">
@@ -75,6 +86,7 @@
   <script src="https://cdn.jsdelivr.net/npm/music-metadata-browser@2.7.11/dist/music-metadata-browser.iife.min.js"></script>
   <script>
     const pick = document.getElementById('filePicker');
+    const imgPick = document.getElementById('imgPicker');
     const audio = document.getElementById('audio');
     const playBtn = document.getElementById('playBtn');
     const seek = document.getElementById('seek');
@@ -90,23 +102,21 @@
     let playing = false;
     const fmt = s => { const m = Math.floor(s / 60), ss = Math.floor(s % 60).toString().padStart(2, '0'); return `${m}:${ss}`; };
 
+    // Audio file change
     pick.addEventListener('change', async e => {
       const file = e.target.files[0];
       if (!file) return;
 
       // load audio
-      const url = URL.createObjectURL(file);
-      audio.src = url;
+      audio.src = URL.createObjectURL(file);
       audio.load();
 
       // reset UI
       titleEl.textContent = file.name;
       artistEl.textContent = '';
-      coverImg.classList.remove('show');
-      coverImg.src = '';
-      placeholder.style.opacity = 1;
-      placeholder.textContent = '♪';
+      resetCover();
 
+      // try embedded art
       try {
         const meta = await musicMetadata.parseBlob(file);
         const { common } = meta;
@@ -115,38 +125,64 @@
         if (common.picture && common.picture.length) {
           const pic = common.picture[0];
           const blob = new Blob([pic.data.buffer || pic.data], { type: pic.format });
-          coverImg.src = URL.createObjectURL(blob);
-          coverImg.onload = () => {
-            coverImg.classList.add('show');
-            placeholder.style.opacity = 0;
-          };
+          showCover(URL.createObjectURL(blob));
+          return;
         }
       } catch (err) {
         console.warn('Failed to read metadata:', err);
       }
-
-      // placeholder fallback
-      setTimeout(() => {
-        if (!coverImg.classList.contains('show')) {
-          placeholder.textContent = (titleEl.textContent.charAt(0) || '?').toUpperCase();
-        }
-      }, 1000);
     });
 
-    // play/pause
-    playBtn.addEventListener('click', () => { if (!audio.src) return; playing ? audio.pause() : audio.play(); });
+    // Image file change
+    imgPick.addEventListener('change', e => {
+      const img = e.target.files[0];
+      if (!img) return;
+      showCover(URL.createObjectURL(img));
+    });
+
+    // Play/Pause
+    playBtn.addEventListener('click', () => {
+      if (!audio.src) return;
+      playing ? audio.pause() : audio.play();
+    });
     audio.addEventListener('play', () => { playing = true; playBtn.textContent = '⏸️'; });
     audio.addEventListener('pause', () => { playing = false; playBtn.textContent = '▶️'; });
 
-    // tempo control
-    const updTempo = () => { const v = parseInt(tempo.value, 10); audio.playbackRate = 1 + v / 100; tempoDisp.textContent = v === 0 ? 'ORIGINAL' : (v > 0 ? `+${v}` : `${v}`); };
+    // Tempo Control
+    const updTempo = () => {
+      const v = parseInt(tempo.value, 10);
+      audio.playbackRate = 1 + v / 100;
+      tempoDisp.textContent = v === 0 ? 'ORIGINAL' : (v > 0 ? `+${v}` : `${v}`);
+    };
     tempo.addEventListener('input', updTempo);
     updTempo();
 
-    // progress bar
+    // Progress Bar
     audio.addEventListener('loadedmetadata', () => { durationEl.textContent = fmt(audio.duration); });
-    audio.addEventListener('timeupdate', () => { if (audio.duration) { seek.value = (audio.currentTime / audio.duration) * 100; current.textContent = fmt(audio.currentTime); } else { seek.value = 0; } });
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) {
+        seek.value = (audio.currentTime / audio.duration) * 100;
+        current.textContent = fmt(audio.currentTime);
+      } else {
+        seek.value = 0;
+      }
+    });
     seek.addEventListener('input', () => { if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration; });
+
+    // Helpers
+    function resetCover() {
+      coverImg.classList.remove('show');
+      coverImg.src = '';
+      placeholder.style.opacity = 1;
+      placeholder.textContent = '♪';
+    }
+    function showCover(src) {
+      coverImg.src = src;
+      coverImg.onload = () => {
+        coverImg.classList.add('show');
+        placeholder.style.opacity = 0;
+      };
+    }
   </script>
 </body>
 </html>
